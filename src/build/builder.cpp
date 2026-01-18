@@ -2,7 +2,7 @@
 
 #include <error.h>
 
-#include <util/glob.h>
+#include <core/glob.h>
 
 #include <mutex>
 #include <filesystem>
