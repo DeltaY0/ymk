@@ -1,0 +1,37 @@
+BasedOnStyle: Google
+
+SortIncludes: Never
+
+TabWidth: 4
+IndentWidth: 4
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum: true
+  AfterStruct: true
+  AfterNamespace: false
+  AfterClass: true
+
+AlignAfterOpenBracket: true
+
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse 
+AllowShortCaseExpressionOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true 
+AllowShortLambdasOnASingleLine: Inline
+AllowShortFunctionsOnASingleLine: Inline
+
+AllowAllParametersOfDeclarationOnNextLine: true
+SpaceBeforeParens: false
+
+PPIndentWidth: 4
+IndentPPDirectives: BeforeHash
+
+IndentAccessModifiers: false
+AccessModifierOffset: -4
+PackConstructorInitializers: BinPack
+AlignConsecutiveMacros: Consecutive
+AlignConsecutiveAssignments: Consecutive
