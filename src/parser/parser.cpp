@@ -196,6 +196,7 @@ void Parser::parse_property(const string& key) {
     if(active_config) {
         if(key == keywords::KeyCStd) { active_config->c_std = parse_value_string(); return; }
         if(key == keywords::KeyCppStd) { active_config->cpp_std = parse_value_string(); return; }
+        if(key == keywords::Compiler) { active_config->compiler = parse_value_string(); return; }
         
         if(key == keywords::KeyStd) {
             string val = parse_value_string();

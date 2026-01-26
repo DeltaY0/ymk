@@ -32,8 +32,17 @@ struct Config
     vector<string> links;
 
     inline void merge(Config &other) {
-        // TODO: impl
-        return;
+        // overwrite
+        if (!other.compiler.empty()) compiler = other.compiler;
+        if (other.c_std.has_value()) c_std = other.c_std;
+        if (other.cpp_std.has_value()) cpp_std = other.cpp_std;
+        if (other.optimize.has_value()) optimize = other.optimize;
+
+        // append
+        defines.insert(defines.end(), other.defines.begin(), other.defines.end());
+        flags.insert(flags.end(), other.flags.begin(), other.flags.end());
+        includes.insert(includes.end(), other.includes.begin(), other.includes.end());
+        links.insert(links.end(), other.links.begin(), other.links.end());
     }
 };
 
