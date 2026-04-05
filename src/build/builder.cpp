@@ -101,9 +101,14 @@ void Builder::build_project(Project& proj, const string& config_name) {
 
     if (c_type == CompilerType::MSVC) {
         final_config.flags.push_back("/LIBPATH:" + workspace.dist_dir);
+        for(const auto& dir : final_config.lib_dirs) {
+            final_config.flags.push_back("/LIBPATH:" + dir);
+        }
     } else {
-        // GCC / Clang
         final_config.flags.push_back("-L" + workspace.dist_dir);
+        for(const auto& dir : final_config.lib_dirs) {
+            final_config.flags.push_back("-L" + dir);
+        }
     }
 
     // --------- RESOLVE SOURCE FILES

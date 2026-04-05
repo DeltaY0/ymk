@@ -6,75 +6,126 @@
 #include <parser/parser.h>
 #include <core/toolchain.h>
 #include <build/builder.h>
+#include <cli/cmd.h> 
 
-void print_list(const std::string& label, const std::vector<std::string>& list) {
-    if (list.empty()) return;
-    std::cout << "    " << label << ": [ ";
-    for (const auto& i : list) std::cout << i << " ";
-    std::cout << "]\n";
+#include <fstream>
+#include <iostream>
+
+void generate_template(std::vector<std::string>& input, std::map<std::string, std::string>& args) {
+    std::string path = args.count("config") ? args["config"] : "build.ymk";
+    std::ofstream file(path);
+    
+    file << "workspace: DefaultWorkspace\n"
+         << "dist: bin\n"
+         << "obj: build/obj\n\n"
+         << "compiler: clang++\n"
+         << "c_std: c11\n"
+         << "cpp_std: c++20\n\n"
+         << "conf: debug {\n"
+         << "    flags: [ -g, -O0 ]\n"
+         << "    defines: [ YMAKE_DEBUG ]\n"
+         << "}\n\n"
+         << "conf: release {\n"
+         << "    flags: [ -O3 ]\n"
+         << "    defines: [ YMAKE_NDEBUG ]\n"
+         << "}\n\n"
+         << "project: App {\n"
+         << "    kind: exe\n"
+         << "    language: cpp\n"
+         << "    src: [ \"src/**/*.cpp\" ]\n"
+         << "    inc: [ \"src\" ]\n"
+         << "    lib_dirs: [ ]\n\n"
+         << "    platform: win {\n"
+         << "        links: [ user32, gdi32, opengl32 ]\n"
+         << "    }\n\n"
+         << "    platform: linux {\n"
+         << "        links: [ pthread, GL, GLU ]\n"
+         << "    }\n"
+         << "}\n";
+         
+    LOGFMT(PROJNAME, "init", GREEN_TEXT("Success: "), "Generated default template at ", PURPLE_TEXT(path), "\n");
+}
+
+void build_project(std::vector<std::string>& input, std::map<std::string, std::string>& args) {
+    std::string config_path = args.count("config") ? args["config"] : "build.ymk";
+    std::string mode = args.count("mode") ? args["mode"] : "debug";
+
+    std::ifstream f(config_path);
+    if (!f.is_open()) {
+        LOGFMT(PROJNAME, "build", RED_TEXT("[ERROR]: "), "Could not open config file: ", config_path, "\n");
+        return;
+    }
+
+    std::string source_code((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+    try {
+        ymk::Lexer lexer(source_code);
+        auto tokens = lexer.scan_all();
+
+        ymk::Parser parser(tokens);
+        ymk::Workspace ws = parser.parse();
+
+        ymk::build::Builder builder(ws);
+        builder.build(mode);
+
+    } catch (const std::exception& e) {
+        LOGFMT(PROJNAME, "core", RED_TEXT("FATAL BUILD ERROR: "), e.what(), "\n");
+    }
 }
 
 int main(int argc, char *argv[]) {
     LOG_CHANGE_PRIORITY(LOG_WARN);
-
-    LOGFMT(PROJNAME, "core", "YMake ",
-           PURPLE_TEXT("v", VERSION_MAJOR, ".", VERSION_MINOR, ".",
-                       VERSION_PATCH, "\n"));
-
-    string config_path = "build.ymk"; // Default name
-    if (argc > 1) config_path = argv[1];
-
-    std::ifstream f(config_path);
-    if (!f.is_open()) {
-        // Fallback to internal test string if file missing (for your debugging)
-        // Or just error out. Let's use your test string logic if you prefer,
-        // but for a real tool, we read files.
-        std::cerr << "Could not open " << config_path << ". Using internal test data.\n";
-        // ... (Insert your string source_code = R"(...)" here if you want fallback)
-    }
     
-    // Read whole file into string
-    std::string source_code((std::istreambuf_iterator<char>(f)),
-                             std::istreambuf_iterator<char>());
-
-    if (source_code.empty()) {
-        // Fallback to the DoomEngine string you had before for testing
-        source_code = R"(
-            workspace: DoomWorkspace
-            dist: "bin"
-            obj: "build/obj"
-            
-            c_std: c11
-            cpp_std: c++20
-
-            conf: debug {
-                flags: [ "-g", "-O0" ]
-            }
-
-            project: DoomEngine {
-                kind: shared
-                src: [ "src/core/glob.cpp" ] 
-                # Using valid file for test ^
-            }
-        )";
+    std::vector<std::string> cli_args;
+    for (int i = 1; i < argc; i++) {
+        cli_args.push_back(argv[i]);
     }
 
-    // 2. Run Pipeline
+    if (cli_args.empty()) {
+        cli_args.push_back("help");
+    }
+
+    std::vector<ymk::cli::Command> commands;
+
+    commands.push_back(ymk::cli::Command(
+        "build", 
+        "Builds the project based on the configuration",
+        {
+            ymk::cli::CommandArgument("config", "Path to config file", "-c", "--config", ymk::cli::ValueType::String),
+            ymk::cli::CommandArgument("mode", "Build configuration mode (e.g., debug, release)", "-m", "--mode", ymk::cli::ValueType::String)
+        },
+        build_project
+    ));
+
+    commands.push_back(ymk::cli::Command(
+        "init", 
+        "Generates a default build.ymk template in the current directory",
+        {
+            ymk::cli::CommandArgument("config", "Path to output config file", "-c", "--config", ymk::cli::ValueType::String)
+        },
+        generate_template
+    ));
+
+    commands.push_back(ymk::cli::Command(
+        "help", 
+        "Outputs toolchain usage information",
+        {},
+        [&commands](std::vector<std::string>&, std::map<std::string, std::string>&) {
+            ymk::cli::output_help_info(commands);
+        }
+    ));
+
     try {
-        // A. Lex
-        ymk::Lexer lexer(source_code);
-        auto tokens = lexer.scan_all();
-
-        // B. Parse
-        ymk::Parser parser(tokens);
-        ymk::Workspace ws = parser.parse();
-
-        // C. Build
-        ymk::build::Builder builder(ws);
-        builder.build("debug");
-
+        ymk::cli::CommandInfo info = ymk::cli::parse_cli(cli_args, commands);
+        
+        // Let's only print the engine header if we are actually building
+        if (info.cmd.name == "build") {
+            LOGFMT(PROJNAME, "core", "YMake ", PURPLE_TEXT("v", VERSION_MAJOR, ".", VERSION_MINOR, ".", VERSION_PATCH, "\n"));
+        }
+        
+        info.call_function();
     } catch (const std::exception& e) {
-        std::cerr << "BUILD FAILED: " << e.what() << "\n";
+        // We handle specific logging inside parse_cli, so we just exit cleanly here
         return 1;
     }
 
