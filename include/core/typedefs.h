@@ -30,6 +30,7 @@ struct Config
     vector<string> flags;
     vector<string> includes;
     vector<string> links;
+    vector<string> lib_dirs;
 
     inline void merge(Config &other) {
         // overwrite

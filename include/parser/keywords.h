@@ -35,6 +35,7 @@ constexpr string_view KeyDeps  = "deps";   // Task Prerequisites
 
 constexpr string_view KeyDefines = "defines";
 constexpr string_view KeyFlags   = "flags";
+constexpr string_view LibDirs    = "libdirs";
 
 // Commands
 constexpr string_view KeyCmd = "exec";

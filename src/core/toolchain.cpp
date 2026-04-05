@@ -126,6 +126,11 @@ CompileCmd Toolchain::create_compile_cmd(const Project& proj, const Config& conf
 
     cmd.args.push_back(src);
 
+    // Add this in create_link_cmd before the output flag logic
+    for (const auto& flag : config.flags) {
+        cmd.args.push_back(flag);
+    }
+
     // output
     if (type == CompilerType::MSVC)
         cmd.args.push_back("/Fo" + out);

@@ -211,6 +211,7 @@ void Parser::parse_property(const string& key) {
         if(key == keywords::KeyFlags) { active_config->flags = parse_value_list(); return; }
         if(key == keywords::KeyInc) { active_config->includes = parse_value_list(); return; }
         if(key == keywords::KeyLinks) { active_config->links = parse_value_list(); return; }
+        if(key == keywords::LibDirs) { active_config->lib_dirs = parse_value_list(); return; }
     }
 
     LOGFMT(PROJNAME, "parser", YELLOW_TEXT("WARNING: "), "Unknown property '", key, "'\n");
