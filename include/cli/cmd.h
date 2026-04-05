@@ -61,16 +61,17 @@ struct Command {
     }
 
     void output_command_info() const {
-        LOGFMT(PROJNAME, "cli", YELLOW_TEXT("USAGE: \n"));
-        LOGFMT(PROJNAME, "cli", "ymk ", CYAN_TEXT(name), "\t", desc, "\n");
+        LLOG(YELLOW_TEXT("USAGE: \n"));
+        LLOG("  ymk ", CYAN_TEXT(name), "\t", desc, "\n");
 
         if (!args.empty()) {
-            LOGFMT(PROJNAME, "cli", PURPLE_TEXT("\targuments: \n"));
+            LLOG(PURPLE_TEXT("\targuments: \n"));
             for (const auto& arg : args) {
-                LOGFMT(PROJNAME, "cli", "\t", CYAN_TEXT(arg.name), ": ", arg.short_opt, ", ", arg.long_opt, "\t", arg.desc, "\n");
+                LLOG("\t", arg.short_opt, ", ", arg.long_opt, 
+                    "\t", CYAN_TEXT("<", arg.name, ">  "), arg.desc, "\n");
             }
         }
-        std::cout << "\n";
+        LLOG("\n");
     }
 };
 

@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 
 void generate_template(std::vector<std::string>& input, std::map<std::string, std::string>& args) {
     std::string path = args.count("config") ? args["config"] : "build.ymk";
@@ -43,7 +44,8 @@ void generate_template(std::vector<std::string>& input, std::map<std::string, st
          << "    }\n"
          << "}\n";
          
-    LOGFMT(PROJNAME, "init", GREEN_TEXT("Success: "), "Generated default template at ", PURPLE_TEXT(path), "\n");
+    string full_path = std::filesystem::absolute(path).string();
+    LLOG(GREEN_TEXT("Success: "), "Generated default template at ", PURPLE_TEXT(full_path), "\n");
 }
 
 void build_project(std::vector<std::string>& input, std::map<std::string, std::string>& args) {
@@ -118,14 +120,12 @@ int main(int argc, char *argv[]) {
     try {
         ymk::cli::CommandInfo info = ymk::cli::parse_cli(cli_args, commands);
         
-        // Let's only print the engine header if we are actually building
         if (info.cmd.name == "build") {
-            LOGFMT(PROJNAME, "core", "YMake ", PURPLE_TEXT("v", VERSION_MAJOR, ".", VERSION_MINOR, ".", VERSION_PATCH, "\n"));
+            LLOG("YMake ", PURPLE_TEXT("v" + std::to_string(VERSION_MAJOR) + "." + std::to_string(VERSION_MINOR) + "." + std::to_string(VERSION_PATCH)), "\n");
         }
         
         info.call_function();
     } catch (const std::exception& e) {
-        // We handle specific logging inside parse_cli, so we just exit cleanly here
         return 1;
     }
 

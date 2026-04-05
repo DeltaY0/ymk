@@ -69,20 +69,21 @@ CommandInfo parse_cli(const std::vector<std::string>& arguments, const std::vect
 }
 
 void output_help_info(const std::vector<Command>& commands) {
-    LOGFMT(PROJNAME, "cli", BLUE_TEXT("YMake v", VERSION_MAJOR, ".", VERSION_MINOR, ".", VERSION_PATCH, "\n"));
-    std::cout << "A fast, simple build tool for C/C++.\n\n";
-    LOGFMT(PROJNAME, "cli", GREEN_TEXT("USAGE: \n"));
+    LLOG(BLUE_TEXT("YMake v"), VERSION_MAJOR, ".", VERSION_MINOR, ".", VERSION_PATCH, "\n\n");
+    LLOG("A fast, simple build tool for C/C++.\n\n");
+    LLOG(GREEN_TEXT("USAGE: \n"));
 
     for (const auto& cmd : commands) {
-        LOGFMT(PROJNAME, "cli", "  ymk ", CYAN_TEXT(cmd.name));
-        // Simple padding for clean alignment
+        LLOG("  ymk ", CYAN_TEXT(cmd.name));
+        
         std::string padding(std::max(0, 10 - (int)cmd.name.length()), ' ');
-        std::cout << padding << cmd.desc << "\n";
+        LLOG(padding, cmd.desc, "\n");
 
         for (const auto& arg : cmd.args) {
-            LOGFMT(PROJNAME, "cli", "\t", arg.short_opt, ", ", arg.long_opt, "  \t", CYAN_TEXT("<", arg.name, ">  "), arg.desc, "\n");
+            LLOG("\t", arg.short_opt, ", ", arg.long_opt, 
+                 "  \t", CYAN_TEXT("<", arg.name, ">  "), arg.desc, "\n");
         }
-        std::cout << "\n";
+        LLOG("\n");
     }
 }
 
