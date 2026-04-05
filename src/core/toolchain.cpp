@@ -162,6 +162,16 @@ CompileCmd Toolchain::create_link_cmd(const Project& proj, const Config& config,
     // input objects
     for (const auto& o : objs) cmd.args.push_back(o);
 
+    // library directories
+    for (const auto& dir : config.lib_dirs) {
+        if (type == CompilerType::MSVC) {
+            cmd.args.push_back("/LIBPATH:" + dir);
+        } else {
+            cmd.args.push_back("-L");
+            cmd.args.push_back(dir); 
+        }
+    }
+
     // links (Libraries)
     for (const auto& lib : config.links) {
         if (type == CompilerType::MSVC) cmd.args.push_back(lib + ".lib");

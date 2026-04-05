@@ -97,19 +97,7 @@ void Builder::build_project(Project& proj, const string& config_name) {
     }
 
     // ------------ LINKER FLAGS (OS/Compiler Specific)
-    CompilerType c_type = Toolchain::detect(final_config.compiler);
-
-    if (c_type == CompilerType::MSVC) {
-        final_config.flags.push_back("/LIBPATH:" + workspace.dist_dir);
-        for(const auto& dir : final_config.lib_dirs) {
-            final_config.flags.push_back("/LIBPATH:" + dir);
-        }
-    } else {
-        final_config.flags.push_back("-L" + workspace.dist_dir);
-        for(const auto& dir : final_config.lib_dirs) {
-            final_config.flags.push_back("-L" + dir);
-        }
-    }
+    final_config.lib_dirs.push_back(workspace.dist_dir);
 
     // --------- RESOLVE SOURCE FILES
     std::vector<string> sources = ymk::fs::glob::resolve(proj.src_globs);
