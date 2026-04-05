@@ -13,8 +13,13 @@ string CompileCmd::to_string() const {
     stringstream ss;
 
     ss << program;
-    for(const auto &arg : args)
-        ss << ' ' << arg;
+    for(const auto &arg : args) {
+        if (arg.find(' ') != string::npos) {
+            ss << " \"" << arg << "\"";
+        } else {
+            ss << ' ' << arg;
+        }
+    }
 
     return ss.str();
 }
