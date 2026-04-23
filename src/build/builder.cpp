@@ -8,11 +8,15 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include <spawn.h>
-#include <sys/wait.h>
 
-// POSIX environment variables array required by posix_spawnp
-extern char **environ;
+// --- OS-Specific Headers ---
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <spawn.h>
+    #include <sys/wait.h>
+    extern char **environ;
+#endif
 
 namespace stdfs = std::filesystem;
 
@@ -21,8 +25,47 @@ namespace ymk::build {
 // global map for O(1) project lookup during dependency resolution
 static std::unordered_map<string, Project*> project_map;
 
-// Helper function using posix_spawnp for thread-safe execution
+// --- Cross-Platform Thread-Safe Execution ---
 static int execute_command_safely(const ymk::CompileCmd& cmd) {
+#ifdef _WIN32
+    // --- Windows / MinGW Implementation ---
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    
+    // Explicitly inherit standard handles so MSYS2/mintty can show compiler output
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Prepend cmd.exe /c so the Windows shell resolves the g++/clang++ path correctly
+    std::string cmd_str = cmd.to_string();
+    std::string mutable_cmd = "cmd.exe /c " + cmd_str;
+
+    // bInheritHandles = TRUE allows the terminal output to pass through cleanly
+    if (!CreateProcessA(NULL, mutable_cmd.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+        std::cerr << "CreateProcessA failed (Error " << GetLastError() << ") for command: " << cmd_str << "\n";
+        return -1; 
+    }
+
+    // Wait until child process exits
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exit_code;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+
+    // Close process and thread handles
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return static_cast<int>(exit_code);
+
+#else
+    // --- Linux / macOS / POSIX Implementation ---
     pid_t pid;
     std::vector<char*> argv;
 
@@ -34,7 +77,7 @@ static int execute_command_safely(const ymk::CompileCmd& cmd) {
     }
     argv.push_back(nullptr); // Array must be null-terminated
 
-    // posix_spawnp automatically searches the MSYS2 PATH 
+    // posix_spawnp automatically searches the PATH 
     int spawn_status = posix_spawnp(&pid, cmd.program.c_str(), nullptr, nullptr, argv.data(), environ);
 
     if (spawn_status != 0) {
@@ -50,8 +93,10 @@ static int execute_command_safely(const ymk::CompileCmd& cmd) {
     }
     
     return -1; // Wait failed or process terminated abnormally
+#endif
 }
 
+// ... Keep the rest of your Builder::Builder, Builder::build, etc. exactly the same! ...
 Builder::Builder(Workspace& ws) : workspace(ws) {
     cache.load(".");
 

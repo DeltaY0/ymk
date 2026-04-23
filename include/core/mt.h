@@ -25,8 +25,9 @@ private:
 
 public:
     ThreadPool(size_t threads = 0) : stop(false) {
-        if (threads == 0) threads = std::thread::hardware_concurrency();
-        if (threads == 0) threads = 4;
+        // if (threads == 0) threads = std::thread::hardware_concurrency();
+        // if (threads == 0) threads = 4
+        threads = 1;
 
         for(size_t i = 0; i < threads; ++i) {
             workers.emplace_back([this] {
