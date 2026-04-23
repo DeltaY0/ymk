@@ -168,12 +168,53 @@ void Builder::build_project(Project& proj, const string& config_name) {
     }
 }
 
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+// Add this helper function to your code
+int execute_command_safely(const std::string& cmd_str) {
+#ifdef IPLATFORM_WINDOWS
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+
+    // CreateProcess requires a mutable string buffer
+    std::string mutable_cmd = cmd_str;
+
+    // bInheritHandles = FALSE is what fixes your thread-safety issue!
+    if (!CreateProcessA(NULL, mutable_cmd.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return -1; // Failed to start process
+    }
+
+    // Wait until child process exits
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exit_code;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+
+    // Close process and thread handles
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return static_cast<int>(exit_code);
+#else
+    // On Linux/Mac, std::system is slightly safer but still ideally 
+    // you'd use posix_spawn() for a production build system.
+    return std::system(cmd_str.c_str());
+#endif
+}
+
+
 void Builder::compile_file(const Project& proj, const Config& cfg, const string& src, const string& obj) {
     CompileCmd cmd = Toolchain::create_compile_cmd(proj, cfg, src, obj);
     
     LOGFMT(PROJNAME, "build", CYAN_TEXT("[CC] "), src, "\n");
     
-    int ret = std::system(cmd.to_string().c_str());
+    int ret = execute_command_safely(cmd.to_string().c_str());
     if (ret != 0) {
         LOGFMT(
             PROJNAME,
