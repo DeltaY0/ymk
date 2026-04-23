@@ -7,6 +7,12 @@
 #include <filesystem>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
+#include <spawn.h>
+#include <sys/wait.h>
+
+// POSIX environment variables array required by posix_spawnp
+extern char **environ;
 
 namespace stdfs = std::filesystem;
 
@@ -14,6 +20,37 @@ namespace ymk::build {
 
 // global map for O(1) project lookup during dependency resolution
 static std::unordered_map<string, Project*> project_map;
+
+// Helper function using posix_spawnp for thread-safe execution
+static int execute_command_safely(const ymk::CompileCmd& cmd) {
+    pid_t pid;
+    std::vector<char*> argv;
+
+    // POSIX standard requires argv[0] to be the program name
+    argv.push_back(const_cast<char*>(cmd.program.c_str()));
+    
+    for (const auto& arg : cmd.args) {
+        argv.push_back(const_cast<char*>(arg.c_str()));
+    }
+    argv.push_back(nullptr); // Array must be null-terminated
+
+    // posix_spawnp automatically searches the MSYS2 PATH 
+    int spawn_status = posix_spawnp(&pid, cmd.program.c_str(), nullptr, nullptr, argv.data(), environ);
+
+    if (spawn_status != 0) {
+        return spawn_status; // Failed to launch (e.g., compiler not found)
+    }
+
+    int wait_status;
+    // Wait for the specific child process to finish
+    if (waitpid(pid, &wait_status, 0) != -1) {
+        if (WIFEXITED(wait_status)) {
+            return WEXITSTATUS(wait_status); // Return the actual exit code
+        }
+    }
+    
+    return -1; // Wait failed or process terminated abnormally
+}
 
 Builder::Builder(Workspace& ws) : workspace(ws) {
     cache.load(".");
@@ -155,8 +192,8 @@ void Builder::build_project(Project& proj, const string& config_name) {
         
         LOGFMT(PROJNAME, "link", CYAN_TEXT("Linking "), out_bin, "...\n");
         
-        // Execute Linker
-        int ret = std::system(link_cmd.to_string().c_str());
+        // Execute Linker using thread-safe posix spawn
+        int ret = execute_command_safely(link_cmd);
         if (ret != 0) {
             LOGFMT(
                 PROJNAME,
@@ -168,53 +205,13 @@ void Builder::build_project(Project& proj, const string& config_name) {
     }
 }
 
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
-// Add this helper function to your code
-int execute_command_safely(const std::string& cmd_str) {
-#ifdef IPLATFORM_WINDOWS
-    STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    ZeroMemory(&pi, sizeof(pi));
-
-    // CreateProcess requires a mutable string buffer
-    std::string mutable_cmd = cmd_str;
-
-    // bInheritHandles = FALSE is what fixes your thread-safety issue!
-    if (!CreateProcessA(NULL, mutable_cmd.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        return -1; // Failed to start process
-    }
-
-    // Wait until child process exits
-    WaitForSingleObject(pi.hProcess, INFINITE);
-
-    DWORD exit_code;
-    GetExitCodeProcess(pi.hProcess, &exit_code);
-
-    // Close process and thread handles
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    return static_cast<int>(exit_code);
-#else
-    // On Linux/Mac, std::system is slightly safer but still ideally 
-    // you'd use posix_spawn() for a production build system.
-    return std::system(cmd_str.c_str());
-#endif
-}
-
-
 void Builder::compile_file(const Project& proj, const Config& cfg, const string& src, const string& obj) {
     CompileCmd cmd = Toolchain::create_compile_cmd(proj, cfg, src, obj);
     
     LOGFMT(PROJNAME, "build", CYAN_TEXT("[CC] "), src, "\n");
     
-    int ret = execute_command_safely(cmd.to_string().c_str());
+    // Execute Compile using thread-safe posix spawn
+    int ret = execute_command_safely(cmd);
     if (ret != 0) {
         LOGFMT(
             PROJNAME,
