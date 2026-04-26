@@ -174,7 +174,6 @@ void Builder::build_project(Project& proj, const string& config_name) {
         );
 
         // b. Link against Dependency
-        // We add the project name to 'links'. The Toolchain will handle formatting (e.g. -lDoomEngine or DoomEngine.lib)
         final_config.links.push_back(dep->name);
     }
 
@@ -197,33 +196,30 @@ void Builder::build_project(Project& proj, const string& config_name) {
     stdfs::create_directories(workspace.dist_dir);
     stdfs::create_directories(workspace.obj_dir + "/" + proj.name);
 
-    // --------- COMPILE PHASE (Multi-threaded)
+    // --------- COMPILE PHASE (Sequential)
     std::vector<string> object_files;
-    std::mutex obj_mutex;
     i32 tasks_dispatched = 0;
 
     for (const auto& src : sources) {
         string obj = get_obj_path(proj, src);
         
-        {
-            std::lock_guard<std::mutex> lock(obj_mutex);
-            object_files.push_back(obj);
-        }
+        // No mutex needed anymore
+        object_files.push_back(obj);
 
         // Incremental Build Check
         if (cache.needs_recompile(proj, final_config, src)) {
+            if (tasks_dispatched == 0) {
+                LOGFMT(PROJNAME, "compile", CYAN_TEXT("Compiling out-of-date files...\n"));
+            }
+            
             tasks_dispatched++;
-            thread_pool.add_task([this, &proj, final_config, src, obj]() {
-                this->compile_file(proj, final_config, src, obj);
-            });
+            
+            // Compile synchronously directly on the main thread
+            this->compile_file(proj, final_config, src, obj);
         }
     }
 
-    // Wait for all threads to finish
-    if (tasks_dispatched > 0) {
-        LOGFMT(PROJNAME, "compile", CYAN_TEXT("Compiling "), tasks_dispatched, " files...\n");
-        thread_pool.wait_idle();
-    } else {
+    if (tasks_dispatched == 0) {
         LOGFMT(PROJNAME, "compile", GREEN_TEXT("Project Up to date!\n"));
     }
 
@@ -237,7 +233,7 @@ void Builder::build_project(Project& proj, const string& config_name) {
         
         LOGFMT(PROJNAME, "link", CYAN_TEXT("Linking "), out_bin, "...\n");
         
-        // Execute Linker using thread-safe posix spawn
+        // Execute Linker
         int ret = execute_command_safely(link_cmd);
         if (ret != 0) {
             LOGFMT(

@@ -13,7 +13,7 @@ class Builder
 {
 private:
     Workspace &workspace;
-    ThreadPool thread_pool;
+    // ThreadPool thread_pool;
     Cache cache;
 
     // builds a single project
