@@ -5,18 +5,8 @@
 
 #include <iostream>
 #include <filesystem>
-#include <mutex>
 #include <unordered_map>
 #include <vector>
-
-// --- OS-Specific Headers ---
-#ifdef _WIN32
-    #include <windows.h>
-#else
-    #include <spawn.h>
-    #include <sys/wait.h>
-    extern char **environ;
-#endif
 
 namespace stdfs = std::filesystem;
 
@@ -25,78 +15,6 @@ namespace ymk::build {
 // global map for O(1) project lookup during dependency resolution
 static std::unordered_map<string, Project*> project_map;
 
-// --- Cross-Platform Thread-Safe Execution ---
-static int execute_command_safely(const ymk::CompileCmd& cmd) {
-#ifdef _WIN32
-    // --- Windows / MinGW Implementation ---
-    STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    
-    // Explicitly inherit standard handles so MSYS2/mintty can show compiler output
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-
-    ZeroMemory(&pi, sizeof(pi));
-
-    // Prepend cmd.exe /c so the Windows shell resolves the g++/clang++ path correctly
-    std::string cmd_str = cmd.to_string();
-    std::string mutable_cmd = "cmd.exe /c " + cmd_str;
-
-    // bInheritHandles = TRUE allows the terminal output to pass through cleanly
-    if (!CreateProcessA(NULL, mutable_cmd.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
-        std::cerr << "CreateProcessA failed (Error " << GetLastError() << ") for command: " << cmd_str << "\n";
-        return -1; 
-    }
-
-    // Wait until child process exits
-    WaitForSingleObject(pi.hProcess, INFINITE);
-
-    DWORD exit_code;
-    GetExitCodeProcess(pi.hProcess, &exit_code);
-
-    // Close process and thread handles
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    return static_cast<int>(exit_code);
-
-#else
-    // --- Linux / macOS / POSIX Implementation ---
-    pid_t pid;
-    std::vector<char*> argv;
-
-    // POSIX standard requires argv[0] to be the program name
-    argv.push_back(const_cast<char*>(cmd.program.c_str()));
-    
-    for (const auto& arg : cmd.args) {
-        argv.push_back(const_cast<char*>(arg.c_str()));
-    }
-    argv.push_back(nullptr); // Array must be null-terminated
-
-    // posix_spawnp automatically searches the PATH 
-    int spawn_status = posix_spawnp(&pid, cmd.program.c_str(), nullptr, nullptr, argv.data(), environ);
-
-    if (spawn_status != 0) {
-        return spawn_status; // Failed to launch (e.g., compiler not found)
-    }
-
-    int wait_status;
-    // Wait for the specific child process to finish
-    if (waitpid(pid, &wait_status, 0) != -1) {
-        if (WIFEXITED(wait_status)) {
-            return WEXITSTATUS(wait_status); // Return the actual exit code
-        }
-    }
-    
-    return -1; // Wait failed or process terminated abnormally
-#endif
-}
-
-// ... Keep the rest of your Builder::Builder, Builder::build, etc. exactly the same! ...
 Builder::Builder(Workspace& ws) : workspace(ws) {
     cache.load(".");
 
@@ -202,8 +120,6 @@ void Builder::build_project(Project& proj, const string& config_name) {
 
     for (const auto& src : sources) {
         string obj = get_obj_path(proj, src);
-        
-        // No mutex needed anymore
         object_files.push_back(obj);
 
         // Incremental Build Check
@@ -233,8 +149,8 @@ void Builder::build_project(Project& proj, const string& config_name) {
         
         LOGFMT(PROJNAME, "link", CYAN_TEXT("Linking "), out_bin, "...\n");
         
-        // Execute Linker
-        int ret = execute_command_safely(link_cmd);
+        // Execute Linker using standard system call
+        int ret = std::system(link_cmd.to_string().c_str());
         if (ret != 0) {
             LOGFMT(
                 PROJNAME,
@@ -251,17 +167,14 @@ void Builder::compile_file(const Project& proj, const Config& cfg, const string&
     
     LOGFMT(PROJNAME, "build", CYAN_TEXT("[CC] "), src, "\n");
     
-    // Execute Compile using thread-safe posix spawn
-    int ret = execute_command_safely(cmd);
+    // Execute Compile using standard system call
+    int ret = std::system(cmd.to_string().c_str());
     if (ret != 0) {
         LOGFMT(
             PROJNAME,
             "build",
             RED_TEXT("[ERROR]: "), "Compilation Failed: ", src, "\n"
         );
-        // Throwing here will likely terminate the thread std::terminate unless caught.
-        // It is better to just log error, or use a thread-safe failure flag in Builder to stop linking.
-        // For now, we allow it to continue to try compiling other files.
     }
 }
 

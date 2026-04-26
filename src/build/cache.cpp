@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <functional>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 
@@ -36,7 +37,8 @@ void Cache::load(const string &root) {
     size_t hash;
     time_t time;
     
-    while (in >> path >> hash >> time) {
+    // Read the path safely, even if it has spaces
+    while (in >> std::quoted(path) >> hash >> time) {
         registry[path] = {hash, time};
     }
 }
@@ -44,7 +46,8 @@ void Cache::load(const string &root) {
 void Cache::save() {
     std::ofstream out(cache_path);
     for (const auto& [path, entry] : registry) {
-        out << path << " " << entry.hash << " " << entry.timestamp << "\n";
+        // Write the path wrapped in quotes
+        out << std::quoted(path) << " " << entry.hash << " " << entry.timestamp << "\n";
     }
 }
 
