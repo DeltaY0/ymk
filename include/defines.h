@@ -23,7 +23,6 @@ using std::vector;
 #define VERSION_PATCH 5
 
 // unsigned int types
-typedef uint8_t u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -51,7 +50,6 @@ typedef double f64;
 #endif
 
 // static assertions for type sizes
-static_assert(sizeof(u8) == 1, "expected u8 to be 1 byte.");
 static_assert(sizeof(u16) == 2, "expected u16 to be 2 bytes.");
 static_assert(sizeof(u32) == 4, "expected u32 to be 4 bytes.");
 static_assert(sizeof(u64) == 8, "expected u64 to be 8 bytes.");
